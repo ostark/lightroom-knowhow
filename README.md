@@ -27,17 +27,17 @@ This repository is model-agnostic: Codex, Claude, ChatGPT, Gemini, and local LLM
 
 The files in `.claude/commands/` are Claude-specific wrappers. Other LLMs can do the same tasks by prompt.
 
-### `/validate-idea <idea>`
+### `/lrc:validate-idea <idea>`
 - Claude behavior: feasibility assessment using docs + limitations.
 - Equivalent prompt for any LLM:
   - "Assess this Lightroom plugin idea for feasibility using `docs/sdk-reference/` and `10-limitations.md`. Return: verdict, plugin type, key APIs, complexity, approach, risks."
 
-### `/explain-api <api>`
+### `/lrc:explain-api <api>`
 - Claude behavior: lookup and explain a specific API with signature, params, returns, example, gotchas.
 - Equivalent prompt for any LLM:
   - "Look up `<api>` in `docs/sdk-reference/` and explain signature, parameters, return value, example usage, related APIs, and limitations."
 
-### `/new-plugin <type>`
+### `/lrc:new-plugin <type>`
 - Claude behavior: scaffold from `templates/<type>-plugin/`, then replace plugin name/toolkit ID values.
 - Equivalent prompt for any LLM:
   - "Create a new Lightroom plugin from `templates/<type>-plugin/` named `<Plugin Name>` with toolkit ID `<com.example.plugin>` and output folder `<path>`."

@@ -33,11 +33,11 @@ When there is a conflict, prefer sections labeled `Official ... (SDK 11.4)`.
 
 If your environment does not support Claude slash commands, use these prompt equivalents:
 
-- `/validate-idea <idea>`:
+- `/lrc:validate-idea <idea>`:
   "Assess this Lightroom plugin idea using `docs/sdk-reference/` and `10-limitations.md`. Return verdict, plugin type, key APIs, complexity, approach, and risks."
 
-- `/explain-api <api>`:
+- `/lrc:explain-api <api>`:
   "Look up `<api>` in `docs/sdk-reference/` and explain signature, parameters, return value, example usage, related APIs, and gotchas."
 
-- `/new-plugin <type>`:
+- `/lrc:new-plugin <type>`:
   "Scaffold from `templates/<type>-plugin/` and replace plugin name + toolkit ID."
