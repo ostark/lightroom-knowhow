@@ -511,3 +511,110 @@ local logger = _G.logger
 ```
 
 **Caution:** `_G` state is lost on plugin reload. For persistent state, use `LrPrefs.prefsForPlugin()` instead.
+
+## Sidecar Pattern (LrSocket Bridge)
+When plugin requirements exceed Lua sandbox capabilities (persistent networking, robust background orchestration, OAuth callback listeners), use a local sidecar process and bridge via `LrSocket` over loopback.
+
+Architecture:
+- Lightroom plugin (Lua): UI, catalog mutations, user-facing progress.
+- Sidecar app (Python/Node/C++): API client, retries, queueing, OAuth/browser flow, heavy processing.
+- Transport: localhost socket (`127.0.0.1`).
+
+### Port-Hunting Listener Pattern (Lua)
+Use a bounded port range so the plugin does not fail if one port is unavailable:
+
+```lua
+local LrSocket = import 'LrSocket'
+local LrTasks = import 'LrTasks'
+local LrPrefs = import 'LrPrefs'
+
+local function startRobustListener()
+    LrTasks.startAsyncTask(function()
+        local startPort, endPort = 54345, 54355
+        local connectedSocket, activePort = nil, nil
+
+        for port = startPort, endPort do
+            local ok = pcall(function()
+                connectedSocket = LrSocket.bind {
+                    port = port,
+                    mode = "receive",
+                    onMessage = function(_, message)
+                        handleIncomingStatus(message)
+                    end,
+                    onClosed = function()
+                        reconnectSidecar()
+                    end,
+                }
+            end)
+            if ok and connectedSocket then
+                activePort = port
+                break
+            end
+        end
+
+        if activePort then
+            local prefs = LrPrefs.prefsForPlugin()
+            prefs.lastActivePort = activePort
+            launchSidecar(activePort)
+        else
+            -- no free ports in range; surface actionable error to user
+        end
+    end)
+end
+```
+
+### Real-Time Status Protocol
+Define a simple message protocol for progress and status captions:
+- `PROGRESS:<0-100>`
+- `STATUS:<text>`
+
+```lua
+local LrProgressScope = import 'LrProgressScope'
+local progress = nil
+
+function handleIncomingStatus(message)
+    if message:sub(1, 9) == "PROGRESS:" then
+        local value = tonumber(message:sub(10)) / 100
+        if not progress then
+            progress = LrProgressScope { title = "Sync in progress...", canCancel = true }
+        end
+        progress:setPortionComplete(value, 1)
+        if value >= 1 then progress:done(); progress = nil end
+    elseif message:sub(1, 7) == "STATUS:" then
+        if progress then progress:setCaption(message:sub(8)) end
+    end
+end
+```
+
+### Sidecar Sender Example (Python)
+```python
+import socket
+import time
+
+def upload_and_report(target_port: int):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.connect(("127.0.0.1", target_port))
+        for i in range(0, 101, 20):
+            s.sendall(f"PROGRESS:{i}".encode("utf-8"))
+            s.sendall(f"STATUS:Syncing {i}% to cloud...".encode("utf-8"))
+            time.sleep(1)
+```
+
+### Resilience Pattern
+- On disconnect (`onClosed`): trigger watchdog recovery.
+- Restart sidecar with last known-good port.
+- Keep pending operations in plugin prefs until sidecar reconnects.
+- Kill stale helper processes during restart.
+
+### Secure OAuth2 via Sidecar
+Recommended flow for desktop integrations:
+1. Plugin sends `START_LOGIN` command to sidecar.
+2. Sidecar opens system browser and performs PKCE Authorization Code flow.
+3. Sidecar runs a temporary localhost callback listener for redirect capture.
+4. Sidecar exchanges code for tokens.
+5. Plugin stores tokens using `LrPasswords` (OS keychain-backed).
+
+Benefits:
+- No password entry inside Lightroom UI.
+- Better compatibility with modern OAuth providers.
+- Secrets handled in native browser + encrypted storage.

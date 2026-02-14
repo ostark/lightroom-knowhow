@@ -168,7 +168,9 @@ The `Info.lua` file runs in an even more restrictive environment than regular pl
 - `LrHttp` MUST be called from within a background task
 - No WebSocket support
 - No persistent connections
-- No built-in OAuth flow (must implement manually with `LrHttp` + `LrDialogs` for auth)
+- No built-in OAuth framework. Implement manually either:
+  - Directly in plugin code (`LrHttp` + `LrDialogs` + optional `URLHandler`), or
+  - Via a sidecar process that handles PKCE + localhost callback capture.
 - HTTPS is supported
 - `LrSocket` exists but is poorly documented -- primarily for communication with external processes on localhost
 - `LrFtp` provides FTP connection support (both namespace and class)
@@ -237,7 +239,7 @@ local lrText = string.gsub(apiText, "\n", string.char(0xE2, 0x80, 0xA8))
 ## Known Workarounds
 
 - **For file writing:** `LrTasks.execute()` can run shell commands to write files
-- **For OAuth:** open browser with `LrHttp.openUrlInBrowser()`, use localhost callback with `LrSocket`
+- **For OAuth:** either open browser with `LrHttp.openUrlInBrowser()` and handle callback in plugin, or use a sidecar process for PKCE + localhost callback + token exchange, then store tokens via `LrPasswords`.
 - **For complex UI:** open a web browser with `LrHttp.openUrlInBrowser()` for rich interfaces
 - **For background polling:** use `LrTasks.startAsyncTask()` with `LrTasks.sleep()` in a loop
 - **For finding deprecated API calls:** configure `sdkDeprecation` in `config.lua`
