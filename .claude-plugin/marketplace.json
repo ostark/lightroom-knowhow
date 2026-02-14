@@ -1,0 +1,29 @@
+{
+  "name": "lightroom-knowhow",
+  "owner": {
+    "name": "ostark"
+  },
+  "metadata": {
+    "description": "Lightroom Classic SDK commands and agents",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "lightroom-plugin-assistant",
+      "source": ".",
+      "strict": false,
+      "description": "Adds Lightroom-focused Claude commands and agents for SDK lookup, idea validation, and plugin scaffolding.",
+      "version": "1.0.0",
+      "category": "developer-tools",
+      "tags": [
+        "lightroom",
+        "sdk",
+        "claude-code",
+        "commands",
+        "agents"
+      ],
+      "commands": ".claude/commands",
+      "agents": ".claude/agents"
+    }
+  ]
+}
