@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "lightroom-plugin-assistant",
-      "source": ".",
+      "source": "./",
       "strict": false,
       "description": "Adds Lightroom-focused Claude commands and agents for SDK lookup, idea validation, and plugin scaffolding.",
       "version": "1.0.0",
@@ -22,8 +22,7 @@
         "commands",
         "agents"
       ],
-      "commands": ".claude/commands",
-      "agents": ".claude/agents"
+      "commands": "./.claude/commands"
     }
   ]
 }
