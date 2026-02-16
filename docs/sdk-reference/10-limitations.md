@@ -54,6 +54,12 @@ The `Info.lua` file runs in an even more restrictive environment than regular pl
 - Export/publish callbacks (`processRenderedPhotos`) run in cooperative tasks that Lightroom provides -- you do NOT need to start your own task there
 - `LrFunctionContext.postAsyncTaskWithContext()` is available for background tasks that need a function context
 
+### Async Model Reality (Lightroom Lua)
+
+- Lightroom does not support native `async/await`.
+- Practical async in plugins is task-based (`LrTasks`), not custom coroutine orchestration.
+- Keep work cooperative: chunk long loops and yield/sleep to avoid UI starvation.
+
 ### Catalog Access Rules
 
 - Only ONE plugin can have write access at a time

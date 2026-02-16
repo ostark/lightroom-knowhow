@@ -15,6 +15,10 @@ LrTasks.startAsyncTask(function()
 end)
 ```
 
+### Lightroom-Safe Async Rule
+- Prefer `LrTasks.startAsyncTask`, `LrTasks.sleep`, `LrTasks.yield`, and `LrTasks.pcall`.
+- Do not design plugin control flow around `coroutine.create/resume/yield`; Lightroom's sandboxed runtime is task-centric and coroutine primitives are restricted.
+
 ### Why Async?
 - Lightroom's main thread is the UI thread
 - Long operations block the UI
@@ -222,6 +226,8 @@ local content = {
 local body, headers = LrHttp.postMultipart(url, content)
 ```
 
+For image/file uploads to REST APIs, use `LrHttp.postMultipart(...)` (not `LrHttp.post(...)`).
+
 ## Persistent Preferences Pattern
 ```lua
 local LrPrefs = import 'LrPrefs'
@@ -234,6 +240,30 @@ prefs.serverUrl = "https://example.com"
 -- Retrieve (persists across sessions)
 local savedPath = prefs.lastExportPath
 ```
+
+## Secure Secrets Pattern (`LrPasswords`)
+Use `LrPasswords` for secrets (API tokens, refresh tokens, passwords), not `LrPrefs`.
+
+```lua
+local LrPasswords = import 'LrPasswords'
+
+local SERVICE = "com.example.gallery"
+local USER = "default-user"
+
+-- Save/update secret
+LrPasswords.store(SERVICE, USER, "access_token_value")
+
+-- Read secret
+local token = LrPasswords.retrieve(SERVICE, USER)
+
+-- Remove secret
+LrPasswords.remove(SERVICE, USER)
+```
+
+Guidelines:
+- Store non-sensitive settings in `LrPrefs`; store credentials/tokens in `LrPasswords`.
+- Use stable service keys (typically plugin ID + purpose).
+- Handle missing secrets gracefully (e.g., prompt login when `retrieve` returns nil).
 
 ## Menu Item Script Pattern
 ```lua
@@ -618,3 +648,13 @@ Benefits:
 - No password entry inside Lightroom UI.
 - Better compatibility with modern OAuth providers.
 - Secrets handled in native browser + encrypted storage.
+
+## Gallery Sync Pattern (Publish-First)
+For ongoing sync with an external gallery, implement a Publish Service Provider first.
+
+Why:
+- Lightroom tracks `New`, `Modified`, and `Deleted` state for you.
+- Your plug-in can focus on transfer + mapping logic in publish callbacks.
+- This avoids rebuilding change-tracking logic in a one-off Export flow.
+
+Use Export-only when the requirement is truly one-shot delivery.

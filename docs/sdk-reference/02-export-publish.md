@@ -10,6 +10,17 @@ Export and publish are the two mechanisms Lightroom Classic provides for renderi
 
 - **Both share the same base callback structure.** A publish service is a superset of an export service. With the exception of export presets, every callback an export service defines is also valid for a publish service, plus additional publish-specific callbacks.
 
+### Recommendation for External Gallery Sync
+
+If your destination is a long-lived external gallery (list/upload/download + ongoing reconciliation), prefer a **Publish Service** over an Export-only plugin.
+
+Reasons:
+- Publish tracks per-photo lifecycle (`new`, `modified`, `deleted`) automatically.
+- Collection-driven UX in Lightroom maps naturally to remote gallery albums/sets.
+- Callbacks provide dedicated hooks for remote rename/reparent/delete behavior.
+
+Keep Export-only implementations for one-time transfer workflows.
+
 ---
 
 ## Export Service Provider
@@ -146,6 +157,7 @@ Key points:
 - `exportContext:renditions()` returns an iterator; it automatically updates the progress indicator.
 - Lightroom renders in a background thread, so rendering and your upload/copy work overlap.
 - Call `rendition:uploadFailed(message)` to report per-photo failures.
+- For HTTP file upload, use multipart requests (`LrHttp.postMultipart(...)`).
 
 #### `canExportToTemporaryLocation`
 
