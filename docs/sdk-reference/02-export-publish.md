@@ -1338,6 +1338,8 @@ Publish services, unlike export services, cannot create presets. The settings ta
 - **Returns:** Nothing.
 - **Required:** No (optional)
 - **Notes:** Called to retrieve comments from the remote service for a collection of published photos. Called: (1) for every photo when any photo in the collection is published/re-published, (2) when the user clicks Refresh in the Comments panel, (3) after the user adds a new comment. Not called for unpublished photos. Non-blocking call. First supported in version 3.0.
+- **Gotcha -- `realname` and `url` required for text rendering:** Each comment table MUST include both `realname` and `url` fields, or Lightroom will display the comment count in the panel header but render NO comment text. This is undocumented and confusing to debug.
+- **Gotcha -- `commentCallback` expects full `photoInfo`:** Pass the full `photoInfo` entry from `arrayOfPhotoInfo` (the table containing `photo`, `publishedPhoto`, `remoteId`, etc.), NOT `photoInfo.publishedPhoto`. Passing just the `LrPublishedPhoto` object silently fails.
 
 ---
 
@@ -1390,6 +1392,7 @@ Publish services, unlike export services, cannot create presets. The settings ta
 - **Returns:** Nothing.
 - **Required:** No (optional)
 - **Notes:** Called when the user chooses "Go to Published Photo" context-menu item. If not provided, Lightroom invokes the URL recorded via `exportRendition:recordPublishedPhotoUrl`. Non-blocking call. First supported in version 3.0.
+- **Gotcha -- `publishedCollectionInfo` is a plain table:** `info.publishedCollectionInfo` is a plain Lua table, NOT an `LrPublishedCollection` object. Access fields directly (e.g. `info.publishedCollectionInfo.remoteCollectionId`, `info.publishedCollectionInfo.name`). You cannot call `LrPublishedCollection` methods on it.
 
 ---
 

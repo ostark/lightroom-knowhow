@@ -658,3 +658,100 @@ Why:
 - This avoids rebuilding change-tracking logic in a one-off Export flow.
 
 Use Export-only when the requirement is truly one-shot delivery.
+
+## Comments Panel Pattern (Publish Services)
+
+All three functions are required for Lightroom to render the full Comments panel. Even read-only services must provide stubs.
+
+```lua
+-- 1. Fetch comments (required for panel to appear)
+function provider.getCommentsFromPublishedCollection(publishSettings, arrayOfPhotoInfo, commentCallback)
+    for _, photoInfo in ipairs(arrayOfPhotoInfo) do
+        local comments = {}  -- fetch from service...
+
+        -- Each comment MUST have 'realname' AND 'url' fields,
+        -- or LR shows the comment count but NO comment text
+        comments[#comments + 1] = {
+            commentId   = "unique-id",
+            commentText = "Great photo!",
+            dateCreated = nil,  -- optional: Cocoa epoch number (Unix - 978307200)
+            username    = "Client Name",
+            realname    = "Client Name",  -- REQUIRED for text to render
+            url         = "https://...",  -- REQUIRED for text to render
+        }
+
+        -- Pass the FULL photoInfo table, NOT photoInfo.publishedPhoto
+        commentCallback { publishedPhoto = photoInfo, comments = comments }
+    end
+end
+
+-- 2. Add comment stub (required even if read-only)
+function provider.addCommentToPublishedPhoto(publishSettings, remotePhotoId, commentText)
+    return false
+end
+
+-- 3. Capability flag (required even if read-only)
+function provider.canAddCommentsToService(publishSettings)
+    return false
+end
+```
+
+**Key gotchas:**
+- If `realname` or `url` is missing from a comment table, Lightroom displays the comment count in the panel header but renders no comment text -- very confusing to debug.
+- `commentCallback` expects `{ publishedPhoto = photoInfo, comments = ... }` where `photoInfo` is the full entry from `arrayOfPhotoInfo` (containing `photo`, `publishedPhoto`, `remoteId`, etc.), NOT `photoInfo.publishedPhoto`.
+
+## Preventing Re-Publish After Metadata Sync
+
+When syncing metadata from a remote service back into Lightroom (e.g. feedback flags mapped to color labels), the publish system marks affected photos as "Modified to Re-Publish." Two mechanisms prevent this:
+
+### 1. metadataThatTriggersRepublish callback
+
+Controls which metadata fields trigger re-publish status. Return `false` for fields your plugin writes during sync:
+
+```lua
+function provider.metadataThatTriggersRepublish(publishSettings)
+    return {
+        default = false,      -- no standard metadata triggers re-publish
+        label = false,         -- color label changes don't trigger
+        customMetadata = false, -- plugin metadata changes don't trigger
+    }
+end
+```
+
+### 2. setEditedFlag(false) -- in a SEPARATE write block
+
+Reset the edited flag AFTER metadata writes. **Critical:** this must be in a **separate** `catalog:withWriteAccessDo` block from the metadata changes. Calling it in the same block does not work -- Lightroom's change detection overrides it at commit time.
+
+```lua
+-- Step 1: Write metadata
+local syncedPhotos = {}
+catalog:withWriteAccessDo("Sync metadata", function()
+    for _, publishedPhoto in ipairs(publishedPhotos) do
+        local photo = publishedPhoto:getPhoto()
+        photo:setRawMetadata("colorNameForLabel", "green")
+        syncedPhotos[#syncedPhotos + 1] = publishedPhoto
+    end
+end)
+
+-- Step 2: Reset edited flags (MUST be a separate block)
+catalog:withWriteAccessDo("Reset edited flags", function()
+    for _, publishedPhoto in ipairs(syncedPhotos) do
+        publishedPhoto:setEditedFlag(false)
+    end
+end)
+```
+
+## goToPublishedPhoto Info Table
+
+The `info` parameter passed to `goToPublishedPhoto(publishSettings, info)` contains:
+
+| Field | Type | Description |
+|---|---|---|
+| `photo` | `LrPhoto` | The photo object |
+| `publishedPhoto` | `LrPublishedPhoto` | The publishing data for the photo |
+| `publishService` | `LrPublishService` | The publish service object |
+| `remoteId` | string/number | The ID stored via `recordPublishedPhotoId` |
+| `remoteUrl` | string (optional) | The URL stored via `recordPublishedPhotoUrl` |
+| `publishedCollectionInfo` | **plain table** | Publication info (NOT an `LrPublishedCollection`) |
+
+**Important:** `info.publishedCollectionInfo` is a **plain Lua table**, not an `LrPublishedCollection` object. It contains fields like `isDefaultCollection`, `name`, `parents`, and `remoteCollectionId` (accessible via `info.publishedCollectionInfo.remoteCollectionId`). You cannot call `LrPublishedCollection` methods on it.

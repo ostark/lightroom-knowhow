@@ -1060,7 +1060,7 @@ Complete class method inventories extracted from official SDK module HTML.
 | `publishedPhoto:getPublishCount()` | Reports the number of times the associated photo has been published by a publish service. |
 | `publishedPhoto:getRemoteId()` | Retrieves the unique identifier for the associated photo, as assigned by the remote service. |
 | `publishedPhoto:getRemoteUrl()` | Retrieves the URL for the associated photo, assigned by the remote service. |
-| `publishedPhoto:setEditedFlag( edited )` | Marks the associated photo as edited since last published, or unchanged since publishing. |
+| `publishedPhoto:setEditedFlag( edited )` | Marks the associated photo as edited since last published, or unchanged since publishing. **Gotcha:** When using `setEditedFlag(false)` to prevent re-publish after syncing metadata, it MUST be called in a **separate** `catalog:withWriteAccessDo` block from the metadata changes. Calling it in the same block does not work -- Lightroom's change detection overrides the flag at commit time. |
 | `publishedPhoto:setRemoteId( remoteID )` | Updates the remote service's unique identifier associated with the published photo. |
 | `publishedPhoto:setRemoteUrl( url )` | Updates the URL for the associated photo. |
 | `publishedPhoto:type()` | Reports the type of this object. |

@@ -36,6 +36,23 @@ The `Info.lua` file runs in an even more restrictive environment than regular pl
 - `_VERSION` variable is available
 - You CANNOT use `import()` or `require()` in Info.lua
 - You CANNOT use any other Lua or Lightroom Classic globals
+- Any complex logic must go in lifecycle scripts (`LrInitPlugin`, etc.), not in Info.lua
+
+### LOC at Module Level
+
+`LOC "$$$/..."` called at **module level** (outside a function body) returns the raw key string, not the translated value. Localization dictionaries may not be loaded yet at require-time.
+
+```lua
+-- BAD: returns raw key string like "$$$/MyPlugin/Title=My Plugin"
+local TITLE = LOC "$$$/MyPlugin/Title=My Plugin"
+
+-- GOOD: call LOC at runtime inside a function
+local function getTitle()
+    return LOC "$$$/MyPlugin/Title=My Plugin"
+end
+```
+
+Use plain Lua strings for static properties that are assigned at module level.
 
 ### Platform Detection
 
@@ -68,6 +85,22 @@ The `Info.lua` file runs in an even more restrictive environment than regular pl
 - Nested write access calls from same plugin DO work
 - Write access from observers: be careful of re-entrancy (use `LrRecursionGuard`)
 - Read access is usually implicit; `catalog:withReadAccessDo()` guarantees a consistent snapshot
+
+### pcall vs LrTasks.pcall
+
+Standard `pcall` cannot wrap functions that yield (e.g. `LrHttp` calls, `LrTasks.sleep`, `catalog:findPhotos`). Using `pcall` around yielding code produces "cannot resume dead coroutine" errors. Always use `LrTasks.pcall` inside async tasks:
+
+```lua
+-- BAD: pcall cannot handle yields
+local ok, err = pcall(function()
+    local body, headers = LrHttp.get(url)  -- yields!
+end)
+
+-- GOOD: LrTasks.pcall handles yields correctly
+local ok, err = LrTasks.pcall(function()
+    local body, headers = LrHttp.get(url)
+end)
+```
 
 ### No True Multithreading
 
@@ -181,6 +214,14 @@ The `Info.lua` file runs in an even more restrictive environment than regular pl
 - `LrSocket` exists but is poorly documented -- primarily for communication with external processes on localhost
 - `LrFtp` provides FTP connection support (both namespace and class)
 
+### LrHttp Cookie Jar
+
+LrHttp maintains an **internal cookie jar** populated automatically from `Set-Cookie` response headers:
+
+- **NEVER** send manual `Cookie` headers alongside the jar -- this causes duplicate cookies and server-side auth failures (e.g. server creates a new anonymous session, returning 403)
+- The jar is **volatile**: cookies are lost on Lightroom restart. Use `LrPasswords` for persistence, then prime the jar with a GET request on first use after restart
+- Let LrHttp handle all cookie management for login flows and subsequent API calls
+
 ## Catalog Constraints
 
 - No SQL access to catalog database (it is SQLite internally but not exposed)
@@ -204,6 +245,18 @@ The `Info.lua` file runs in an even more restrictive environment than regular pl
 - `LrDialogs` namespace is NOT available during the shutdown task (`LrShutdownApp`)
 - Plugin errors: Lightroom silently catches most errors; use `LrLogger` to see them
 - `LrTasks.startAsyncTask()` automatically attaches an error dialog to the function context; use `LrTasks.startAsyncTaskWithoutErrorHandler()` if you want custom error handling
+
+### Metadata Files Must Stay at Plugin Root
+
+The SDK schema reader for metadata (`LrMetadataProvider`, `LrMetadataTagsetFactory`) runs in a **restricted environment** that cannot load files from subdirectories. Files referenced by these Info.lua keys must remain at the plugin root with their original names. Moving them into subdirectories causes silent failures -- metadata fields simply don't appear.
+
+### LR's require Can't Find Files from Subdirectory Scripts
+
+When a script lives in a subdirectory (e.g. `init/Init.lua`), calling `require "MyModule"` will NOT find `MyModule.lua` at the plugin root. Lightroom's `require` only searches relative to the plugin root, but execution context matters.
+
+Workarounds:
+- Use `loadfile` with an absolute path: `loadfile(import("LrPathUtils").child(_PLUGIN.path, "MyModule.lua"))()`
+- Create a **custom module loader** at the plugin root that patches `require` to resolve dotted paths (e.g. `core.Logger` resolves to `core/Logger.lua`). Entry-point scripts bootstrap it via `loadfile`
 
 ## Version Compatibility
 
